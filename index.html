@@ -8,9 +8,12 @@
   <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 
-  <!-- Firebase SDKs -->
+  <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-database-compat.js"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
     body {
@@ -67,12 +70,17 @@
       margin-left: 5px;
     }
 
-    .fa-bolt { color: #f1c40f; }
-    .fa-exchange-alt { color: #3498db; }
-    .fa-plug { color: #e74c3c; }
-    .fa-chart-line { color: #2ecc71; }
-    .fa-wave-square { color: #9b59b6; }
-    .fa-percent { color: #e67e22; }
+    .chart-box {
+      background: #fff;
+      border-radius: 15px;
+      padding: 20px;
+      box-shadow: 0 6px 12px rgba(0,0,0,0.1);
+    }
+
+    canvas {
+      width: 100% !important;
+      height: 300px !important;
+    }
   </style>
 </head>
 
@@ -81,7 +89,6 @@
 <h1><i class="fas fa-plug"></i> ESP32 Power Monitor</h1>
 
 <div class="grid">
-
   <div class="card">
     <i class="fas fa-bolt icon"></i>
     <div>
@@ -113,27 +120,24 @@
       <div class="value"><span id="energy">--</span><span class="unit">kWh</span></div>
     </div>
   </div>
+</div>
 
-  <div class="card">
-    <i class="fas fa-wave-square icon"></i>
-    <div>
-      <div class="label">Frequency</div>
-      <div class="value"><span id="frequency">--</span><span class="unit">Hz</span></div>
-    </div>
+<br>
+
+<div class="grid">
+  <div class="chart-box">
+    <h3>⚡ Power vs Time</h3>
+    <canvas id="powerChart"></canvas>
   </div>
 
-  <div class="card">
-    <i class="fas fa-percent icon"></i>
-    <div>
-      <div class="label">Power Factor</div>
-      <div class="value"><span id="pf">--</span></div>
-    </div>
+  <div class="chart-box">
+    <h3>🔋 Energy vs Time</h3>
+    <canvas id="energyChart"></canvas>
   </div>
-
 </div>
 
 <script>
-  // 🔥 Firebase Configuration (YOUR PROJECT)
+  // 🔥 Firebase Configuration
   const firebaseConfig = {
   apiKey: "AIzaSyDPy9D_J7YNrQFTZ_sC3w71S5iYIKRWr8g",
   authDomain: "energymeter-6e176.firebaseapp.com",
@@ -144,26 +148,86 @@
   appId: "1:56078075876:web:f597f9a26012fb499869f1"
   };
 
-  // Initialize Firebase
   firebase.initializeApp(firebaseConfig);
-
   const db = firebase.database();
 
-  // 📡 Live data listener
+  const MAX_POINTS = 50;
+
+  const powerChart = new Chart(document.getElementById('powerChart'), {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [{
+        label: 'Power (W)',
+        data: [],
+        borderWidth: 2,
+        tension: 0.3
+      }]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        x: {
+          title: { display: true, text: 'Local Time' }
+        },
+        y: {
+          title: { display: true, text: 'Watts (W)' }
+        }
+      }
+    }
+  });
+
+  const energyChart = new Chart(document.getElementById('energyChart'), {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [{
+        label: 'Energy (kWh)',
+        data: [],
+        borderWidth: 2,
+        tension: 0.3
+      }]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        x: {
+          title: { display: true, text: 'Local Time' }
+        },
+        y: {
+          title: { display: true, text: 'kWh' }
+        }
+      }
+    }
+  });
+
+  // 📡 Firebase live update
   db.ref("power_meter").on("value", snapshot => {
-    const data = snapshot.val();
-    if (!data) return;
+    const d = snapshot.val();
+    if (!d) return;
 
-    document.getElementById("voltage").textContent   = data.voltage?.toFixed(1) ?? "--";
-    document.getElementById("current").textContent   = data.current?.toFixed(2) ?? "--";
-    document.getElementById("power").textContent     = data.power?.toFixed(1) ?? "--";
-    document.getElementById("energy").textContent    = data.energy?.toFixed(3) ?? "--";
-    document.getElementById("frequency").textContent = data.frequency ?? "--";
-    document.getElementById("pf").textContent        = data.pf?.toFixed(2) ?? "--";
+    document.getElementById("voltage").textContent = d.voltage?.toFixed(1);
+    document.getElementById("current").textContent = d.current?.toFixed(2);
+    document.getElementById("power").textContent   = d.power?.toFixed(1);
+    document.getElementById("energy").textContent  = d.energy?.toFixed(3);
 
-    console.log("Live Firebase Data:", data);
-  }, error => {
-    console.error("Firebase read failed:", error);
+    const timeLabel = new Date().toLocaleTimeString(); // ✅ LOCAL SYSTEM TIME
+
+    if (powerChart.data.labels.length >= MAX_POINTS) {
+      powerChart.data.labels.shift();
+      powerChart.data.datasets[0].data.shift();
+      energyChart.data.labels.shift();
+      energyChart.data.datasets[0].data.shift();
+    }
+
+    powerChart.data.labels.push(timeLabel);
+    powerChart.data.datasets[0].data.push(d.power || 0);
+
+    energyChart.data.labels.push(timeLabel);
+    energyChart.data.datasets[0].data.push(d.energy || 0);
+
+    powerChart.update();
+    energyChart.update();
   });
 </script>
 
