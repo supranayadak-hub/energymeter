@@ -5,25 +5,42 @@
 <title>ESP32 Smart Energy Monitor</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<!-- Icons -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-
-<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-database-compat.js"></script>
-
-<!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
+/* ---------- BASE ---------- */
 body{
   font-family: Arial, sans-serif;
   background:#f2f4f8;
-  margin:0;
   padding:20px;
 }
-h1{text-align:center;margin-bottom:30px;color:#2c3e50}
+h1{
+  text-align:center;
+  color:#2c3e50;
+  position:relative;
+}
 
+/* ---------- LIVE LED ---------- */
+.status-led{
+  position:absolute;
+  right:10px;
+  top:5px;
+  width:14px;
+  height:14px;
+  border-radius:50%;
+  background:#2ecc71;
+  box-shadow:0 0 10px #2ecc71;
+  animation: blink 1.5s infinite;
+}
+@keyframes blink{
+  0%,100%{opacity:1}
+  50%{opacity:0.3}
+}
+
+/* ---------- GRID ---------- */
 .grid{
   display:grid;
   grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
@@ -34,31 +51,36 @@ h1{text-align:center;margin-bottom:30px;color:#2c3e50}
 
 .card,.chart-box{
   background:#fff;
-  border-radius:15px;
+  border-radius:14px;
   padding:20px;
-  box-shadow:0 6px 12px rgba(0,0,0,0.1);
+  box-shadow:0 6px 12px rgba(0,0,0,0.12);
+  transition:transform 0.3s ease, box-shadow 0.3s ease;
 }
 
+/* ---------- CARD ANIMATION ---------- */
 .card{
   display:flex;
   align-items:center;
 }
-
-.icon{
-  font-size:38px;
-  width:50px;
-  margin-right:18px;
+.card:hover{
+  transform:translateY(-4px);
+  box-shadow:0 10px 18px rgba(0,0,0,0.18);
 }
 
-.label{
-  font-size:14px;
-  color:#7f8c8d;
+/* pulse when updated */
+.card.update{
+  animation:pulse 0.6s ease;
+}
+@keyframes pulse{
+  0%{box-shadow:0 0 0 rgba(46,204,113,0)}
+  50%{box-shadow:0 0 18px rgba(46,204,113,0.6)}
+  100%{box-shadow:0 0 0 rgba(46,204,113,0)}
 }
 
-.value{
-  font-size:26px;
-  color:#2c3e50;
-}
+/* ---------- TEXT ---------- */
+.icon{font-size:36px;width:50px;margin-right:16px}
+.label{font-size:13px;color:#7f8c8d}
+.value{font-size:26px;color:#2c3e50}
 
 canvas{
   width:100%!important;
@@ -69,139 +91,113 @@ canvas{
 
 <body>
 
-<h1><i class="fas fa-plug"></i> ESP32 Smart Energy Monitor</h1>
+<h1>
+  <i class="fas fa-plug"></i> ESP32 Smart Energy Monitor
+  <span class="status-led"></span>
+</h1>
 
-<!-- 🔹 Live Cards -->
+<!-- LIVE CARDS -->
 <div class="grid">
 
-  <div class="card">
-    <i class="fas fa-bolt icon"></i>
-    <div>
-      <div class="label">Voltage</div>
-      <div class="value"><span id="voltage">--</span> V</div>
-    </div>
+  <div class="card" id="c_voltage"><i class="fas fa-bolt icon"></i>
+    <div><div class="label">Voltage</div><div class="value"><span id="voltage">--</span> V</div></div>
   </div>
 
-  <div class="card">
-    <i class="fas fa-exchange-alt icon"></i>
-    <div>
-      <div class="label">Current</div>
-      <div class="value"><span id="current">--</span> A</div>
-    </div>
+  <div class="card" id="c_current"><i class="fas fa-exchange-alt icon"></i>
+    <div><div class="label">Current</div><div class="value"><span id="current">--</span> A</div></div>
   </div>
 
-  <div class="card">
-    <i class="fas fa-bolt-lightning icon"></i>
-    <div>
-      <div class="label">Active Power</div>
-      <div class="value"><span id="active">--</span> W</div>
-    </div>
+  <div class="card" id="c_active"><i class="fas fa-bolt-lightning icon"></i>
+    <div><div class="label">Active Power</div><div class="value"><span id="active">--</span> W</div></div>
   </div>
 
-  <div class="card">
-    <i class="fas fa-wave-square icon"></i>
-    <div>
-      <div class="label">Reactive Power</div>
-      <div class="value"><span id="reactive">--</span> VAR</div>
-    </div>
+  <div class="card" id="c_reactive"><i class="fas fa-wave-square icon"></i>
+    <div><div class="label">Reactive Power</div><div class="value"><span id="reactive">--</span> VAR</div></div>
   </div>
 
-  <div class="card">
-    <i class="fas fa-chart-area icon"></i>
-    <div>
-      <div class="label">Apparent Power</div>
-      <div class="value"><span id="apparent">--</span> VA</div>
-    </div>
+  <div class="card" id="c_apparent"><i class="fas fa-chart-area icon"></i>
+    <div><div class="label">Apparent Power</div><div class="value"><span id="apparent">--</span> VA</div></div>
   </div>
 
-  <div class="card">
-    <i class="fas fa-percentage icon"></i>
-    <div>
-      <div class="label">Power Factor</div>
-      <div class="value"><span id="pf">--</span></div>
-    </div>
+  <div class="card" id="c_pf"><i class="fas fa-percentage icon"></i>
+    <div><div class="label">Power Factor</div><div class="value"><span id="pf">--</span></div></div>
+  </div>
+
+  <div class="card" id="c_energy"><i class="fas fa-battery-half icon"></i>
+    <div><div class="label">Energy</div><div class="value"><span id="energy">--</span> kWh</div></div>
   </div>
 
 </div>
 
 <br>
 
-<!-- 🔹 Multi-Line Chart -->
 <div class="grid">
   <div class="chart-box">
-    <h3>⚡ Power & PF vs Time (Toggle from Legend)</h3>
+    <h3>⚡ Power & PF vs Time</h3>
     <canvas id="powerChart"></canvas>
   </div>
 </div>
 
+<br>
+
+<div class="grid">
+  <div class="chart-box">
+    <h3>🔋 Energy vs Time</h3>
+    <canvas id="energyChart"></canvas>
+  </div>
+</div>
+
 <script>
-/* 🔥 Firebase Config */
-const firebaseConfig = {
-  apiKey: "AIzaSyDPy9D_J7YNrQFTZ_sC3w71S5iYIKRWr8g",
-  authDomain: "energymeter-6e176.firebaseapp.com",
-  databaseURL: "https://energymeter-6e176-default-rtdb.firebaseio.com",
-  projectId: "energymeter-6e176",
-  storageBucket: "energymeter-6e176.firebasestorage.app",
-  messagingSenderId: "56078075876",
-  appId: "1:56078075876:web:f597f9a26012fb499869f1"
-};
+/* Firebase */
+firebase.initializeApp({
+  apiKey:"AIzaSyDPy9D_J7YNrQFTZ_sC3w71S5iYIKRWr8g",
+  authDomain:"energymeter-6e176.firebaseapp.com",
+  databaseURL:"https://energymeter-6e176-default-rtdb.firebaseio.com"
+});
+const db=firebase.database();
+const MAX_POINTS=60;
 
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
-
-const MAX_POINTS = 60;
-
-/* 🔹 Chart */
-const powerChart = new Chart(document.getElementById("powerChart"),{
+/* Charts */
+const powerChart=new Chart(powerChartElem=document.getElementById("powerChart"),{
   type:"line",
-  data:{
-    labels:[],
-    datasets:[
-      { label:"Active Power (W)", data:[], borderWidth:2, tension:0.3 },
-      { label:"Reactive Power (VAR)", data:[], borderWidth:2, tension:0.3 },
-      { label:"Apparent Power (VA)", data:[], borderWidth:2, tension:0.3 },
-      { label:"Power Factor", data:[], borderWidth:2, tension:0.3 }
-    ]
-  },
-  options:{
-    responsive:true,
-    interaction:{ mode:"index", intersect:false },
-    plugins:{
-      legend:{
-        position:"top",
-        labels:{ usePointStyle:true },
-        onClick:(e,item,legend)=>{
-          const i=item.datasetIndex;
-          const c=legend.chart;
-          c.setDatasetVisibility(i,!c.isDatasetVisible(i));
-          c.update();
-        }
-      }
-    },
-    scales:{
-      x:{ title:{ display:true, text:"Local Time" }},
-      y:{ title:{ display:true, text:"Value" }}
-    }
-  }
+  data:{labels:[],datasets:[
+    {label:"Active (W)",data:[],borderWidth:2,tension:0.3},
+    {label:"Reactive (VAR)",data:[],borderWidth:2,tension:0.3},
+    {label:"Apparent (VA)",data:[],borderWidth:2,tension:0.3},
+    {label:"PF",data:[],borderWidth:2,tension:0.3}
+  ]},
+  options:{animation:{duration:600},interaction:{mode:"index",intersect:false}}
 });
 
-/* 🔥 Firebase Live Update */
-db.ref("power_meter").on("value", snap=>{
-  const d=snap.val();
-  if(!d) return;
+const energyChart=new Chart(document.getElementById("energyChart"),{
+  type:"line",
+  data:{labels:[],datasets:[{label:"Energy (kWh)",data:[],borderWidth:2,tension:0.3}]},
+  options:{animation:{duration:600}}
+});
 
-  voltage.textContent  = d.voltage?.toFixed(1);
-  current.textContent  = d.current?.toFixed(2);
-  active.textContent   = d.active_power?.toFixed(1);
-  reactive.textContent = d.reactive_power?.toFixed(1);
-  apparent.textContent = d.apparent_power?.toFixed(1);
-  pf.textContent       = d.pf?.toFixed(2);
-
+/* Firebase Live */
+db.ref("power_meter").on("value",snap=>{
+  const d=snap.val(); if(!d) return;
   const t=new Date().toLocaleTimeString();
+
+  voltage.textContent=d.voltage?.toFixed(1);
+  current.textContent=d.current?.toFixed(2);
+  active.textContent=d.active_power?.toFixed(1);
+  reactive.textContent=d.reactive_power?.toFixed(1);
+  apparent.textContent=d.apparent_power?.toFixed(1);
+  pf.textContent=d.pf?.toFixed(2);
+  energy.textContent=d.energy?.toFixed(3);
+
+  document.querySelectorAll(".card").forEach(c=>{
+    c.classList.add("update");
+    setTimeout(()=>c.classList.remove("update"),600);
+  });
 
   if(powerChart.data.labels.length>=MAX_POINTS){
     powerChart.data.labels.shift();
     powerChart.data.datasets.forEach(ds=>ds.data.shift());
+    energyChart.data.labels.shift();
+    energyChart.data.datasets[0].data.shift();
   }
 
   powerChart.data.labels.push(t);
@@ -210,7 +206,11 @@ db.ref("power_meter").on("value", snap=>{
   powerChart.data.datasets[2].data.push(d.apparent_power||0);
   powerChart.data.datasets[3].data.push(d.pf||0);
 
+  energyChart.data.labels.push(t);
+  energyChart.data.datasets[0].data.push(d.energy||0);
+
   powerChart.update();
+  energyChart.update();
 });
 </script>
 
