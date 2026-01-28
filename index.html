@@ -98,8 +98,8 @@ const onBtn=document.getElementById("onBtn");
 const offBtn=document.getElementById("offBtn");
 
 /* Relay buttons */
-onBtn.onclick=()=>db.ref("/power_meter/relay_request").set(true);
-offBtn.onclick=()=>db.ref("/power_meter/relay_request").set(false);
+onBtn.onclick=()=>db.ref("/power_meter/relay_state").set(true);
+offBtn.onclick=()=>db.ref("/power_meter/relay_state").set(false);
 
 /* Recharge */
 let tariffVal=6.5;
