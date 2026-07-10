@@ -532,6 +532,16 @@ body::before {
         <div class="status-val" id="powerStatus">—</div>
       </div>
       <div class="status-row">
+        <div class="status-indicator" id="gridDot"></div>
+        <div class="status-label">Grid Available</div>
+        <div class="status-val" id="gridStatus">—</div>
+      </div>
+      <div class="status-row">
+        <div class="status-indicator" id="solarDot"></div>
+        <div class="status-label">Solar Available</div>
+        <div class="status-val" id="solarStatus">—</div>
+      </div>
+      <div class="status-row">
         <div class="status-label">Active Source</div>
         <div class="status-val">
           <span class="source-badge" id="sourceBadge">—</span>
@@ -635,6 +645,10 @@ const el = {
 
 const powerDot       = document.getElementById("powerDot");
 const powerStatus    = document.getElementById("powerStatus");
+const gridDot        = document.getElementById("gridDot");
+const gridStatus     = document.getElementById("gridStatus");
+const solarDot       = document.getElementById("solarDot");
+const solarStatus    = document.getElementById("solarStatus");
 const sourceBadge    = document.getElementById("sourceBadge");
 const alertBanner    = document.getElementById("alertBanner");
 const lastUpdate     = document.getElementById("lastUpdate");
@@ -740,6 +754,15 @@ meterRef.on("value", snap => {
   const relayOn = !!d.relay_state;
   powerDot.classList.toggle("on", relayOn);
   powerStatus.textContent = relayOn ? "ON" : "OFF";
+
+  // Grid / Solar availability (from ESP32 digital input feedback)
+  const gridAvail = !!d.grid_available;
+  gridDot.classList.toggle("on", gridAvail);
+  gridStatus.textContent = gridAvail ? "Available" : "Unavailable";
+
+  const solarAvail = !!d.solar_available;
+  solarDot.classList.toggle("on", solarAvail);
+  solarStatus.textContent = solarAvail ? "Available" : "Unavailable";
 
   // FIX 8: credit check — disable ON only when credit truly ≤ 0.
   //         Always re-enable based on current value (fixes stuck-disabled bug).
