@@ -476,7 +476,7 @@ body::before {
     <div class="card balance">
       <div class="card-label">Balance</div>
       <div class="card-value" id="credit">—</div>
-      <div class="card-unit">kWh remaining</div>
+      <div class="card-unit">₹ at current tariff (<span id="creditKwhSub">—</span> kWh)</div>
     </div>
     <div class="card">
       <div class="card-label">Voltage</div>
@@ -648,6 +648,7 @@ const el = {
   energy:         document.getElementById("energy"),
   credit:         document.getElementById("credit"),
 };
+const creditKwhSub = document.getElementById("creditKwhSub");
 
 const powerDot       = document.getElementById("powerDot");
 const powerStatus    = document.getElementById("powerStatus");
@@ -747,6 +748,15 @@ meterRef.on("value", snap => {
   // Update timestamp
   lastUpdate.textContent = "Updated: " + new Date().toLocaleTimeString();
 
+  // ── Resolve tariff FIRST (Balance in ₹ depends on it) ─────
+  // GRID → ₹6/kWh, RENEWABLE → ₹3/kWh. Change TARIFF_GRID /
+  // TARIFF_RENEWABLE constants above if rates change.
+  const src = (d.active_source || "").toUpperCase();
+  let activeTariff = TARIFF_DEFAULT;
+  if (src === "GRID") activeTariff = TARIFF_GRID;
+  else if (src === "RENEWABLE") activeTariff = TARIFF_RENEWABLE;
+  applyTariff(activeTariff);
+
   // Metrics — safe fallback to "—" if field missing
   const fmt = (v, digits) => v != null ? v.toFixed(digits) : "—";
   el.voltage.textContent        = fmt(d.voltage, 1);
@@ -757,7 +767,16 @@ meterRef.on("value", snap => {
   el.frequency.textContent      = fmt(d.frequency, 1);
   el.pf.textContent             = fmt(d.pf, 2);
   el.energy.textContent         = fmt(d.energy, 3);
-  el.credit.textContent         = fmt(d.credit_kwh, 2);
+
+  // Balance shown in ₹ = stored kWh credit × the tariff for the
+  // currently active source (grid vs renewable have different rates).
+  if (d.credit_kwh != null) {
+    el.credit.textContent = "₹" + (d.credit_kwh * activeTariff).toFixed(2);
+    creditKwhSub.textContent = d.credit_kwh.toFixed(2);
+  } else {
+    el.credit.textContent = "—";
+    creditKwhSub.textContent = "—";
+  }
 
   // Relay state
   const relayOn = !!d.relay_state;
@@ -780,30 +799,23 @@ meterRef.on("value", snap => {
   onBtn.disabled = noCredit;
   alertBanner.classList.toggle("show", noCredit);
 
-  // ── Source changeover + tariff switching ─────────────────
-  // Tariff now follows the active source automatically:
-  //   GRID       → ₹6 / kWh
-  //   RENEWABLE  → ₹3 / kWh
-  // (Change TARIFF_GRID / TARIFF_RENEWABLE constants above if rates change.)
-  const src = (d.active_source || "").toUpperCase();
+  // ── Source changeover badge / button state ────────────────
+  // (tariff for this source was already resolved and applied above)
   if (src === "GRID") {
     sourceBadge.textContent = "GRID";
     sourceBadge.className   = "source-badge grid";
     gridBtn.disabled  = true;
     renewBtn.disabled = false;
-    applyTariff(TARIFF_GRID);
   } else if (src === "RENEWABLE") {
     sourceBadge.textContent = "RENEWABLE";
     sourceBadge.className   = "source-badge renew";
     renewBtn.disabled = true;
     gridBtn.disabled  = false;
-    applyTariff(TARIFF_RENEWABLE);
   } else {
     sourceBadge.textContent = "—";
     sourceBadge.className   = "source-badge";
     gridBtn.disabled  = false;
     renewBtn.disabled = false;
-    applyTariff(TARIFF_DEFAULT);
   }
 
 }, err => {
