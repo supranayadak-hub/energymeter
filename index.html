@@ -474,9 +474,9 @@ body::before {
   <!-- METRIC CARDS -->
   <div class="cards">
     <div class="card balance">
-      <div class="card-label">Balance</div>
-      <div class="card-value" id="credit">—</div>
-      <div class="card-unit">₹ at current tariff (<span id="creditKwhSub">—</span> kWh)</div>
+  <div class="card-label">Balance</div>
+  <div class="card-value" id="credit">₹0.00</div>
+  <div class="card-unit">Available Credit</div>
     </div>
     <div class="card">
       <div class="card-label">Voltage</div>
@@ -600,9 +600,9 @@ body::before {
     </div>
 
     <div class="kwh-preview">
-      <small>You will receive</small>
-      <span id="kwhPreview">0.000</span> kWh
-    </div>
+<small>Recharge Amount</small>
+<span id="kwhPreview">₹0.00</span>
+</div>
 
     <div class="modal-btns">
       <button class="btn btn-recharge" onclick="doRecharge()">Confirm Recharge</button>
@@ -632,8 +632,8 @@ const db = firebase.database();
 
 // ── Tariff rates by source (₹ per kWh) ────────────────────
 // Change these two numbers if your rates ever change.
-const TARIFF_GRID      = 3.0;
-const TARIFF_RENEWABLE = 6.0;
+const TARIFF_GRID      = 6.0;
+const TARIFF_RENEWABLE = 3.0;
 const TARIFF_DEFAULT   = TARIFF_GRID; // used when source is unknown
 
 // ── Element refs ─────────────────────────────────────────
@@ -648,7 +648,6 @@ const el = {
   energy:         document.getElementById("energy"),
   credit:         document.getElementById("credit"),
 };
-const creditKwhSub = document.getElementById("creditKwhSub");
 
 const powerDot       = document.getElementById("powerDot");
 const powerStatus    = document.getElementById("powerStatus");
@@ -689,8 +688,8 @@ renewBtn.onclick = () => db.ref("/power_meter/source_select").set(1);
 
 // ── Recharge modal ────────────────────────────────────────
 amtInput.oninput = e => {
-  const rs = parseFloat(e.target.value) || 0;
-  kwhPreview.textContent = (rs / tariffVal).toFixed(3);
+    const rs = parseFloat(e.target.value) || 0;
+    kwhPreview.textContent = "₹" + rs.toFixed(2);
 };
 
 function openRecharge() {
@@ -707,16 +706,21 @@ function closeRecharge() {
 }
 
 function doRecharge() {
-  const rs = parseFloat(amtInput.value);
-  if (!rs || rs <= 0) return alert("Please enter a valid amount.");
-  const k = rs / tariffVal;
-  // FIX 5: transaction ensures atomic add even with concurrent updates
-  db.ref("/power_meter/credit_kwh").transaction(v => (v || 0) + k)
+
+    const rs = parseFloat(amtInput.value);
+
+    if (!rs || rs <= 0)
+        return alert("Please enter a valid amount.");
+
+    db.ref("/power_meter/credit_balance").transaction(v => (v || 0) + rs)
     .then(() => {
-      closeRecharge();
-      alert(`✔ Recharged ${k.toFixed(3)} kWh successfully.`);
-    })
-    .catch(err => alert("Recharge failed: " + err.message));
+
+        closeRecharge();
+
+        alert("Recharge Successful");
+
+    });
+
 }
 
 // ── Helper: apply tariff rate to the UI ───────────────────
@@ -770,9 +774,8 @@ meterRef.on("value", snap => {
 
   // Balance shown in ₹ = stored kWh credit × the tariff for the
   // currently active source (grid vs renewable have different rates).
-  if (d.credit_kwh != null) {
-    el.credit.textContent = "₹" + (d.credit_kwh * activeTariff).toFixed(2);
-    creditKwhSub.textContent = d.credit_kwh.toFixed(2);
+  if (d.credit_balance != null) {
+    el.credit.textContent = "₹" + Number(d.credit_balance).toFixed(2);
   } else {
     el.credit.textContent = "—";
     creditKwhSub.textContent = "—";
@@ -794,7 +797,7 @@ meterRef.on("value", snap => {
 
   // FIX 8: credit check — disable ON only when credit truly ≤ 0.
   //         Always re-enable based on current value (fixes stuck-disabled bug).
-  currentCredit = d.credit_kwh || 0;
+  currentCredit = d.credit_balance || 0;
   const noCredit = currentCredit <= 0;
   onBtn.disabled = noCredit;
   alertBanner.classList.toggle("show", noCredit);
