@@ -753,8 +753,8 @@ meterRef.on("value", snap => {
   // TARIFF_RENEWABLE constants above if rates change.
   const src = (d.active_source || "").toUpperCase();
   let activeTariff = TARIFF_DEFAULT;
-  if (src === "RENEWABLE") activeTariff = TARIFF_GRID;
-  else if (src === "GRID") activeTariff = TARIFF_RENEWABLE;
+  if (src === "GRID") activeTariff = TARIFF_GRID;
+  else if (src === "RENEWABLE") activeTariff = TARIFF_RENEWABLE;
   applyTariff(activeTariff);
 
   // Metrics — safe fallback to "—" if field missing
