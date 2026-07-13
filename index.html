@@ -549,7 +549,7 @@ body::before {
       </div>
       <div class="status-row">
         <div class="status-label">Tariff Rate</div>
-        <div class="status-val">₹ <span id="tariffDisplay">6.50</span> / kWh</div>
+        <div class="status-val">₹ <span id="tariffDisplay">6.00</span> / kWh</div>
       </div>
     </div>
 
@@ -596,7 +596,7 @@ body::before {
 
     <div class="tariff-row">
       <span>Current Tariff</span>
-      <span>₹ <span id="tariffModal">6.50</span> per kWh</span>
+      <span>₹ <span id="tariffModal">6.00</span> per kWh</span>
     </div>
 
     <div class="kwh-preview">
@@ -629,6 +629,12 @@ firebase.initializeApp({
 });
 
 const db = firebase.database();
+
+// ── Tariff rates by source (₹ per kWh) ────────────────────
+// Change these two numbers if your rates ever change.
+const TARIFF_GRID      = 6.0;
+const TARIFF_RENEWABLE = 3.0;
+const TARIFF_DEFAULT   = TARIFF_GRID; // used when source is unknown
 
 // ── Element refs ─────────────────────────────────────────
 const el = {
@@ -666,7 +672,7 @@ const tariffDisplay  = document.getElementById("tariffDisplay");
 const tariffModal    = document.getElementById("tariffModal");
 const rechargeModal  = document.getElementById("rechargeModal");
 
-let tariffVal = 6.5;
+let tariffVal = TARIFF_DEFAULT;
 let currentCredit = 0;
 
 // ── Button actions ────────────────────────────────────────
@@ -712,6 +718,16 @@ function doRecharge() {
     .catch(err => alert("Recharge failed: " + err.message));
 }
 
+// ── Helper: apply tariff rate to the UI ───────────────────
+function applyTariff(rate) {
+  tariffVal = rate;
+  tariffDisplay.textContent = rate.toFixed(2);
+  tariffModal.textContent   = rate.toFixed(2);
+  // Keep the recharge preview in sync if the modal is open while source changes
+  const rs = parseFloat(amtInput.value) || 0;
+  kwhPreview.textContent = (rs / tariffVal).toFixed(3);
+}
+
 // ── Main Firebase listener ────────────────────────────────
 // FIX 6: keep listener reference so it can be cleanly detached if needed.
 //         Added error handler and connection state listener.
@@ -743,13 +759,6 @@ meterRef.on("value", snap => {
   el.energy.textContent         = fmt(d.energy, 3);
   el.credit.textContent         = fmt(d.credit_kwh, 2);
 
-  // FIX 7: tariff from Firebase (if field exists), else keep default 6.5
-  if (d.tariff_per_kwh != null) {
-    tariffVal = d.tariff_per_kwh;
-    tariffDisplay.textContent = tariffVal.toFixed(2);
-    tariffModal.textContent   = tariffVal.toFixed(2);
-  }
-
   // Relay state
   const relayOn = !!d.relay_state;
   powerDot.classList.toggle("on", relayOn);
@@ -771,23 +780,30 @@ meterRef.on("value", snap => {
   onBtn.disabled = noCredit;
   alertBanner.classList.toggle("show", noCredit);
 
-  // Source changeover — disable the active one, enable the other
+  // ── Source changeover + tariff switching ─────────────────
+  // Tariff now follows the active source automatically:
+  //   GRID       → ₹6 / kWh
+  //   RENEWABLE  → ₹3 / kWh
+  // (Change TARIFF_GRID / TARIFF_RENEWABLE constants above if rates change.)
   const src = (d.active_source || "").toUpperCase();
   if (src === "GRID") {
     sourceBadge.textContent = "GRID";
     sourceBadge.className   = "source-badge grid";
     gridBtn.disabled  = true;
     renewBtn.disabled = false;
+    applyTariff(TARIFF_GRID);
   } else if (src === "RENEWABLE") {
     sourceBadge.textContent = "RENEWABLE";
     sourceBadge.className   = "source-badge renew";
     renewBtn.disabled = true;
     gridBtn.disabled  = false;
+    applyTariff(TARIFF_RENEWABLE);
   } else {
     sourceBadge.textContent = "—";
     sourceBadge.className   = "source-badge";
     gridBtn.disabled  = false;
     renewBtn.disabled = false;
+    applyTariff(TARIFF_DEFAULT);
   }
 
 }, err => {
